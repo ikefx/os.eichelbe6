@@ -22,50 +22,82 @@
 #include <stdbool.h>
 
 #define SHM_KEY 0x3963
-
+#define CLK_KEY 0x3693
 #define FLAGS (O_CREAT | O_EXCL)
 #define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
-#define MAX 1
-#define FRAMESIZE 8
-#define BITLENGTH 8 * 8
+#define FRAMELEN 32
 
 /* STRUCTURES */
-struct shObj {
-	int pActive;			// number of active processes
-	int pTotal;			// total number of active processes
-	int pComplete;			// number of complete processes
-	int frameT[8];
-	int frames[BITLENGTH];
-	int memSize;			// max memory allocation   256k
+struct iClock {
+	unsigned long seco;		// whole second val
+	unsigned long nano;		//  nano offset val
 };
 
-/* GLOBALS */
+struct pageTable {
+	int refByte;			// int representing 8 bit(byte) logical address
+	int dirtyBit;			// int representing if page is dirty (0|1)
+};
+
+struct shObj {
+	int pComplete;			// number of complete processes
+	int memSize;			// max memory allocation   256k
+	int frames[FRAMELEN];		// free frame vector (convert int to binary for logical address)
+};
+/**************/
+/* GLOBALS ****/
+char  * sema = "SEMA6";
+sem_t * semaphore;
+int shm_1;
+struct iClock * ptime;
+size_t CLOCKSIZE = sizeof(struct iClock);
 int shm_0;
 struct shObj * shm;
 size_t SHMSZ = sizeof(struct shObj);
+/**************/
+
+/* PROTOTYPES */
+int getnamed(char *name, sem_t **sem, int val);
+/**************/
 
 int main(int argc, char * argv[]){
 
-	/* ESTABLISH SHM SEGMENT */
+	/* SEMAPHORE */
+	if(getnamed(sema, &semaphore, 1) == -1){
+		perror("Failed to create named semaphore");
+		return 1;}
+
+	/* ESTABLISH DATA STRUCTURE IN MEMORY SEGMENT */
 	if((shm_0 = shmget(SHM_KEY, SHMSZ, 0666)) < 0){
-		perror("USER: Shared memory create: shmget()");
+ 		perror("OSS: Shared memory create shm: shmget()");
 		exit(1);}
 	if((shm = shmat(shm_0, NULL, 0)) == (void*) -1){
-		perror("USER: Shared memory attach: shmat()");
+		perror("OSS: Shared memory attach shm: shmat()");
+		exit(1);}
+	/* ESTABLISH CLOCK IN MEMORY SEGMENT */
+	if((shm_1 = shmget(CLK_KEY, SHMSZ, 0666)) < 0){
+ 		perror("OSS: Shared memory create clock: shmget()");
+		exit(1);}
+	if((ptime = shmat(shm_1, NULL, 0)) == (void*) -1){
+		perror("OSS: Shared memory attach clock: shmat()");
 		exit(1);}
 	
 	printf("\t\tSTART USER: I am the child and my pid is %s:%d\n", argv[1], getpid());	
-
 	usleep(1000000);
-
 	printf("\t\tEND USER: I am finished. Child %s:%d\n", argv[1], getpid());
-
-	/* DETACH FROM SEGMENT */
-	if(shmdt(shm) == -1){
-		perror("DETACHING SHARED MEMORY: shmdt()");
-		return 1;}	
+	ptime->seco += 1;
+	ptime->nano += 5e8;
 
 	return 0;
 }
 
+/* FUNCTIONS */
+int getnamed(char *name, sem_t **sem, int val){
+	/* FUNCTION TO ACCESS NAMED SEMAPHORE | CREATING IF IT DOESNT EXIST */
+	while(((*sem = sem_open(name, FLAGS , PERMS , val)) == SEM_FAILED) && (errno == EINTR));
+	if(*sem != SEM_FAILED) return 0;
+	if(errno != EEXIST) return -1;
+	while(((*sem = sem_open(name, 0)) == SEM_FAILED) && (errno == EINTR));
+	if(*sem != SEM_FAILED) return 0;
+	return -1;	
+}

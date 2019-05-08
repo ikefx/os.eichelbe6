@@ -12,6 +12,18 @@ README
 CRITERIA:
 
 	OSS
+		> OSS accepts 2 argument parameters: ie to execute:
+		
+			$./oss 5 3
+				> the first argument is the maximum number of processes to create/complete before 
+				successful OSS termination
+
+				> the second argument is the maximum number of processes allowed to run simultaneously
+				** this value cannot be greater than 18 **
+			Default values for these arguments are leveraged if these argv[]s are not provided
+
+		
+
 		> When a memory reference is made to a frame byte, set its most
 		significant bit to 1
 
