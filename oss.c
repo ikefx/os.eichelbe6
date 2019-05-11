@@ -31,7 +31,7 @@
 #define FLAGS (O_CREAT | O_EXCL)
 #define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
-#define MAX 3
+#define MAX 1
 #define MAXACTIVE 2
 
 #define FRAMELEN 32
@@ -43,14 +43,18 @@ struct iClock {
 };
 
 struct pageTable {
-	int refByte;			// int representing 8 bit(byte) logical address
+	int name;			// name of page as int
+	int refByte;			// 8 bit(byte)logical address up to 128, use as size
 	int dirtyBit;			// int representing if page is dirty (0|1)
+	int isRead;			// int representing read or write (0|1) 1 = read
+	int address;			// the logical address of the page
 };
 
 struct shObj {
 	int pComplete;			// number of complete processes
 	int memSize;			// max memory allocation   256k
 	int frames[FRAMELEN];		// free frame vector (convert int to binary for logical address)
+	int pagesRequested;		// number of pages requested
 };
 /**************/
 /* GLOBALS ****/
@@ -64,6 +68,7 @@ struct shObj * shm;
 size_t SHMSZ = sizeof(struct shObj);
 /**************/
 /* PROTOTYPES */
+void dectobin(int x);
 int getnamed(char *name, sem_t **sem, int val);
 void sigintHandler(int sig_num);
 /**************/
@@ -99,7 +104,8 @@ int main(int argc, char * argv[]){
 	ptime->seco = 0;	
 	shm->pComplete = 0;
 	shm->memSize = 256;
-
+	shm->pagesRequested = 0;
+	dectobin(128);
 	printf("memSize = %d Max= %d Max-Active= %d\n", shm->memSize, max, maxActive);
 	while(shm->pComplete < max){
 		/* PRODUCE UP TO MAX-ACTIVE PROCESSES AT ONE TIME */
@@ -109,6 +115,10 @@ int main(int argc, char * argv[]){
 				if((pid = fork()) == 0){			 
 					char spTotal[(int)((ceil(log10(pActive))+1)*sizeof(char))];
 					sprintf(spTotal, "%d", pActive);
+				//	char sStart[(int)((ceil(log10(ptime->seco))+1)*sizeof(char))];
+				//	sprintf(sStart, "%lu", ptime->seco);
+				//	char nStart[(int)((ceil(log10(ptime->nano))+1)*sizeof(char))];
+				//	sprintf(nStart, "%lu", ptime->nano);
 					char * args[] = {"./user", spTotal, '\0'};
 					execvp("./user", args);
 				}
@@ -144,8 +154,39 @@ int main(int argc, char * argv[]){
 }
 
 /* FUNCTIONS */
+void dectobin(int x){
+	/* CONVERT A DECIMAL NUMBER TO BINARY STRING */
+	char buffer[32];
+	char cleanb[32];
+	int c, k;
+	for(c = 31; c >= 0; c--){
+		k = x >> c;
+		if(k & 1)
+			strcat(buffer, "1");
+		else
+			strcat(buffer, "0");
+	}
+	for(int i = 0; i < strlen(buffer) - 2; i++){
+		if( i > 23){
+			int len = strlen(buffer) - (i - 2);
+			char * copy = (char*)malloc(len + 1);
+			strcpy(copy, buffer + i + 3);
+			sprintf(cleanb, copy);
+			break;
+		}
+	}
+	printf("%s\n",cleanb);	
+	printf("%d\n", (int)strlen(cleanb));
+	int test = 128;
+	printf("Reference byte (used as size): %d\n", test);
+	printf("Reference byte after shift: %d\n", test >> 1);
+	
+}
+
+
 int getnamed(char *name, sem_t **sem, int val){
 	/* FUNCTION TO ACCESS NAMED SEMAPHORE | CREATING IF IT DOESNT EXIST */
+
 	while(((*sem = sem_open(name, FLAGS , PERMS , val)) == SEM_FAILED) && (errno == EINTR));
 	if(*sem != SEM_FAILED) return 0;
 	if(errno != EEXIST) return -1;
