@@ -108,6 +108,7 @@ int main(int argc, char * argv[]){
 	dectobin(128);
 	printf("memSize = %d Max= %d Max-Active= %d\n", shm->memSize, max, maxActive);
 	while(shm->pComplete < max){
+		signal(SIGINT, sigintHandler);
 		/* PRODUCE UP TO MAX-ACTIVE PROCESSES AT ONE TIME */
 		for(int i = pActive; i < maxActive; i++){
 			pActive++;
@@ -199,7 +200,20 @@ void sigintHandler(int sig_num){
 	/* CTRL C KILL */
 	signal(SIGINT, sigintHandler);
 	printf("\nTerminating all...\n");
-	sem_unlink(sema);
+	/* DEALLOCATE */
+	sem_unlink("SEMA6");
+	if(shmdt(shm) == -1){
+		perror("Shared memory detach: shmdt()");
+		exit(1);}
+	if(shmctl(shm_0, IPC_RMID, 0) == -1){
+		perror("Shared memory remove: shmctl()");
+		exit(1);}
+	if(shmdt(ptime) == -1){
+		perror("OSS: Shared memory detach: shmdt()");
+		exit(1);}
+	if(shmctl(shm_1, IPC_RMID, 0) == -1){
+		perror("OSS: Shared memory remove: shmctl()");
+		exit(1);}
 	kill(0,SIGTERM);
 	exit(0);
 }

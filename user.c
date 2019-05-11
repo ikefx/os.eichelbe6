@@ -109,12 +109,21 @@ int main(int argc, char * argv[]){
 			printf("\t\t\tUSER: Child %s:%d Requesting a frame for Page %d\n", argv[1], getpid(), childPage->name);
 			printPageInfo(childPage);
 	
+			bool noFrameAvail = false;
 			for(int i = 0; i < FRAMELEN; i++){
 				if(shm->frames[i] == 0){
 					printf("\t\tPlacing page in frame %d\n", i);
 					shm->frames[i] = 1;
+					shm->memSize += childPage->refByte;
+					noFrameAvail = false;
 					break;
 				}
+				noFrameAvail = true;
+			}
+			while(noFrameAvail){
+				printf("frames full\n");
+				printf("there were %d requests, and memory space is %d\n", shm->pagesRequested, shm->memSize);
+				usleep(100000);
 			}
 			usleep(10000);
 		}
@@ -149,8 +158,8 @@ int main(int argc, char * argv[]){
 void printPageInfo(struct pageTable * table){
 	/* PRINT TABLE INFO */
 	printf("-------------------------------------------------------\n");
-	printf(" %6s | %8s | %8s | %8s | %8s |\n", "NAME", "REFBYTE", "DIRTY", "READ", "ADDRESS");
-	printf(" %6d | %8d | %8d | %8d | %8d |\n", table->name, table->refByte, table->dirtyBit, table->isRead, table->address);
+	printf(" %6s | %8s | %8s | %8s | %8s |\n", "NAME", "REFBYTE", "DIRTY", "R|W", "ADDRESS");
+	printf(" %6d | %8d | %8d | %8s | %8d |\n", table->name, table->refByte, table->dirtyBit, (table->isRead == 1) ? "READ" : "WRITE", table->address);
 	printf("-------------------------------------------------------\n");
 }
 
