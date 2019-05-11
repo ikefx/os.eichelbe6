@@ -20,26 +20,21 @@ CRITERIA:
 
 				> the second argument is the maximum number of processes allowed to run simultaneously
 				** this value cannot be greater than 18 **
-			Default values for these arguments are leveraged if these argv[]s are not provided
+			* Default values for these arguments are provided if these argv[]s are not provided
 
 		
+		> PAGE FAULT HANDER:
+			OSS has a page fault handler that handles page faults.  Page faults occur when there is not enough
+			memory for the next page requests.
 
-		> When a memory reference is made to a frame byte, set its most
-		significant bit to 1
+			When a page fault occurs, OSS recognizes such from a signal from the child.  To handle the page fault,
+			the OSS shifts the bits of every 'in use' page reference byte to the right.  This reduces the memory
+			required of the currently in-use addresses.  The lowest value page is replaced with the new page.
+			Repeats until the new page can fit in the Free Frame Vector array.
+			
+			OSS also executes page fault handler every 10 requests to prevent a fault occurence
 
-		> When `x` (user defined) amount of memory references are made to a specific frame
-		shift the byte one bit to the right (setting left-most to zero)
-		> When the frame vector fills, replace the lowest value frame byte
-		> Free Frame Vector local to OSS, place in shared memory
-		> Free Frame Vector is a 32 integer array, is 0 or 1
-		> Once Free Vector is full, do replacement algorith
-			> Max is 256k
-			> 8 bits per frame
-		> Allocate memory for shared data structures: ie page tables
-			page table uses fixed size arrays 
-			each child will require less than 32k memory, each page 1k
-		> Use semaphore on the logical clock
-		> Assume max memory of 256k
+		> The logical clock is wrapped in semaphore protection and increments on page fault handling
 		
 
 	USER

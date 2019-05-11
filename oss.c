@@ -31,8 +31,8 @@
 #define FLAGS (O_CREAT | O_EXCL)
 #define PERMS (mode_t) (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
-#define MAX 1
-#define MAXACTIVE 2
+#define MAX 12
+#define MAXACTIVE 4
 
 #define FRAMELEN 32
 
@@ -55,6 +55,8 @@ struct shObj {
 	int memSize;			// max memory allocation   256k
 	int frames[FRAMELEN];		// free frame vector (convert int to binary for logical address)
 	int pagesRequested;		// number of pages requested
+	int refBytes[FRAMELEN];		// refbytes in frames
+	bool hasQueue;			// signal declaring whether a queue exists
 };
 /**************/
 /* GLOBALS ****/
@@ -68,7 +70,10 @@ struct shObj * shm;
 size_t SHMSZ = sizeof(struct shObj);
 /**************/
 /* PROTOTYPES */
-void dectobin(int x);
+bool framesFull();
+int sumRefBytes();
+int shiftBitFrames(int * array, int size);
+int getRandomNumber(int low, int high);
 int getnamed(char *name, sem_t **sem, int val);
 void sigintHandler(int sig_num);
 /**************/
@@ -103,12 +108,16 @@ int main(int argc, char * argv[]){
 	ptime->nano = 0;
 	ptime->seco = 0;	
 	shm->pComplete = 0;
-	shm->memSize = 256;
+	shm->memSize = 0;
 	shm->pagesRequested = 0;
-	dectobin(128);
+	int faultOccurence = 0;
 	printf("memSize = %d Max= %d Max-Active= %d\n", shm->memSize, max, maxActive);
+
 	while(shm->pComplete < max){
 		signal(SIGINT, sigintHandler);
+		sem_wait(semaphore);
+		shm->memSize = sumRefBytes();
+		sem_post(semaphore);
 		/* PRODUCE UP TO MAX-ACTIVE PROCESSES AT ONE TIME */
 		for(int i = pActive; i < maxActive; i++){
 			pActive++;
@@ -116,19 +125,44 @@ int main(int argc, char * argv[]){
 				if((pid = fork()) == 0){			 
 					char spTotal[(int)((ceil(log10(pActive))+1)*sizeof(char))];
 					sprintf(spTotal, "%d", pActive);
-				//	char sStart[(int)((ceil(log10(ptime->seco))+1)*sizeof(char))];
-				//	sprintf(sStart, "%lu", ptime->seco);
-				//	char nStart[(int)((ceil(log10(ptime->nano))+1)*sizeof(char))];
-				//	sprintf(nStart, "%lu", ptime->nano);
 					char * args[] = {"./user", spTotal, '\0'};
 					execvp("./user", args);
 				}
 			}
 		}
 
+		/* PAGE FAULT ADJUSTER: SHIFT BITS EVERY 3 REQUESTS */
+		if(shm->hasQueue){
+			printf("OSS: PAGE FAULT HANDLER EXECUTED (%d/256)\n", shm->memSize);
+			shiftBitFrames(shm->refBytes, FRAMELEN);
+			sem_wait(semaphore);
+			shm->memSize = sumRefBytes();
+			sem_post(semaphore);
+			/* IF FRAMES ARE FULL: REPLACE A FRAME */
+			if(framesFull()){
+				int min = 9999;
+				int mini = 0;
+				for(int i = 0; i < FRAMELEN; i++){
+					if(min > shm->frames[i]){
+						min = shm->frames[i];
+						mini = i;
+					}
+				}
+				shm->frames[mini] = 0;
+			}
+
+			shm->hasQueue = false;
+			unsigned long time = ptime->seco*(unsigned long)1e9 + ptime->nano;
+			time += 5e8;
+			ptime->seco = time/(unsigned long)1e9;
+			ptime->nano = time%(unsigned long)1e9;
+			faultOccurence++;
+
+		}
+
 		/* CATCH EXIT SIGNAL OF COMPLETED CHILDREN */
 		while(waitpid(-1, &status, WNOHANG) > 0){	
-			printf("OSS: Parent recognized child completed at %lu:%lu\n", ptime->seco, ptime->nano);
+			//printf("OSS: Parent recognized child completed at %lu:%lu\n", ptime->seco, ptime->nano);
 			pActive--;
 			shm->pComplete++;
 		}	
@@ -136,7 +170,9 @@ int main(int argc, char * argv[]){
 
 	/* WAIT FOR ALL CHILDREN TO COMPELTE */
 	while((pid = wait(&pid)) > 0);
-
+	printf("OSS: There were %d page requests made\n", shm->pagesRequested);
+	printf("OSS: There were %d page fault handler events\n", faultOccurence);
+	printf("OSS: Deallocating and quitting..\n");
 	/* DEALLOCATE */
 	sem_unlink("SEMA6");
 	if(shmdt(shm) == -1){
@@ -155,35 +191,41 @@ int main(int argc, char * argv[]){
 }
 
 /* FUNCTIONS */
-void dectobin(int x){
-	/* CONVERT A DECIMAL NUMBER TO BINARY STRING */
-	char buffer[32];
-	char cleanb[32];
-	int c, k;
-	for(c = 31; c >= 0; c--){
-		k = x >> c;
-		if(k & 1)
-			strcat(buffer, "1");
-		else
-			strcat(buffer, "0");
+bool framesFull(){
+	for(int i = 0; i < FRAMELEN; i++){
+		if(shm->frames[i] > 0)
+			return false;
 	}
-	for(int i = 0; i < strlen(buffer) - 2; i++){
-		if( i > 23){
-			int len = strlen(buffer) - (i - 2);
-			char * copy = (char*)malloc(len + 1);
-			strcpy(copy, buffer + i + 3);
-			sprintf(cleanb, copy);
-			break;
-		}
-	}
-	printf("%s\n",cleanb);	
-	printf("%d\n", (int)strlen(cleanb));
-	int test = 128;
-	printf("Reference byte (used as size): %d\n", test);
-	printf("Reference byte after shift: %d\n", test >> 1);
-	
+	return false;
 }
 
+int sumRefBytes(){
+	/* GET THE SUM OFF ALL REFBYTES */
+	int tempM = 0;
+	for(int i = 0; i < FRAMELEN; i++){
+		tempM += shm->refBytes[i];
+	}
+	return tempM;
+}
+
+int shiftBitFrames(int * array, int size){
+	/* SHIFT THE BITS TO THE RIGHT OF THE INT ARRAY */
+	for(int i = 0; i < size; i++){
+		if(array[i] > 0){
+			array[i] = array[i] >> 1;
+		}
+	}
+	return 0;
+}
+
+int getRandomNumber(int low, int high){
+	/* get random number within range */
+	int num;
+	for ( int i = 0; i < 2; i++ ){
+		num = (rand() % (high - low + 1)) + low;
+	}
+	return num;
+}
 
 int getnamed(char *name, sem_t **sem, int val){
 	/* FUNCTION TO ACCESS NAMED SEMAPHORE | CREATING IF IT DOESNT EXIST */
