@@ -66,6 +66,7 @@ size_t SHMSZ = sizeof(struct shObj);
 /**************/
 
 /* PROTOTYPES */
+void writeRequests(char * name, char * pName, unsigned long time);
 int getAvailFrame(struct pageTable * page);
 int sumRefBytes();
 void printPageInfo(struct pageTable * table);
@@ -111,7 +112,8 @@ int main(int argc, char * argv[]){
 			/* REQUEST A FRAME FOR A PAGE */	
 			pageRequestsLocal++;
 			shm->pagesRequested++;
-			
+			unsigned long time = ptime->nano + (ptime->seco*1e9);
+
 			childPage = malloc(sizeof(struct pageTable));
 			childPage->name = shm->pagesRequested;
 			childPage->refByte = (int)pow(2, getRandomNumber(2,7));
@@ -124,6 +126,7 @@ int main(int argc, char * argv[]){
 			shm->refBytes[pageRequestsLocal] = childPage->refByte;	
 			printf("\t\t\tChild %s:%d Requesting a frame for Page %d\n", argv[1], getpid(), childPage->name);
 			printPageInfo(childPage);
+			writeRequests("log.txt", argv[1], time);
 
 			/* IF FRAMES ARE FULL */
 			while(getAvailFrame(childPage) == -1){
@@ -134,7 +137,7 @@ int main(int argc, char * argv[]){
 			childPage->dirtyBit = 1;
 			sem_wait(semaphore);
 			shm->hasQueue = false;
-			unsigned long time = ptime->nano + (ptime->seco*1e9);
+			time = ptime->nano + (ptime->seco*1e9);
 			time += 5e8;
 			ptime->seco = time/(unsigned long)1e9;
 			ptime->nano = time%(unsigned long)1e9;
@@ -183,6 +186,16 @@ int main(int argc, char * argv[]){
 }
 
 /* FUNCTIONS */
+void writeRequests(char * name, char * pName, unsigned long time){
+	FILE *fp;
+	fp = fopen(name, "a");
+	char wroteline[355];
+	sprintf(wroteline, "\tUSER: Child %s:%d requests Frame for Page at %lu:%lu.\n", pName, getpid(), time/(unsigned long)1e9, time%(unsigned long)1e9);
+	fprintf(fp, wroteline);
+	fclose(fp);
+	return;
+}
+
 int getAvailFrame(struct pageTable * page){
 	/* FIND NEXT AVAILABLE FRAME */
 	for(int i = 0; i < FRAMELEN; i++){

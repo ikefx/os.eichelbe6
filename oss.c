@@ -70,16 +70,20 @@ struct shObj * shm;
 size_t SHMSZ = sizeof(struct shObj);
 /**************/
 /* PROTOTYPES */
+void writeFault(char * name, unsigned long time);
+void writeStats(char * name, unsigned long time, int requestN, int faultN);
 bool framesFull();
 int sumRefBytes();
 int shiftBitFrames(int * array, int size);
 int getRandomNumber(int low, int high);
+void clearOldOutput();
 int getnamed(char *name, sem_t **sem, int val);
 void sigintHandler(int sig_num);
 /**************/
 
 int main(int argc, char * argv[]){
 	printf("\t\t--> OSS START <--\n\t\tParent PID: %d\n\n",getpid());	
+	clearOldOutput();	
 	/* READ COMMAND LINE ARGS */
 	int max = ( argv[1] ) ? atol(argv[1]) : MAX;
 	int maxActive = ( argv[1] && argv[2] ) ? atol(argv[2]) : (MAXACTIVE < max) ? MAXACTIVE : max;
@@ -134,6 +138,9 @@ int main(int argc, char * argv[]){
 		/* PAGE FAULT ADJUSTER: SHIFT BITS EVERY 3 REQUESTS */
 		if(shm->hasQueue){
 			printf("OSS: PAGE FAULT HANDLER EXECUTED (%d/256)\n", shm->memSize);
+			unsigned long time = ptime->seco*(unsigned long)1e9 + ptime->nano;
+			time += 5e8;
+			writeFault("log.txt", time);
 			shiftBitFrames(shm->refBytes, FRAMELEN);
 			sem_wait(semaphore);
 			shm->memSize = sumRefBytes();
@@ -152,8 +159,6 @@ int main(int argc, char * argv[]){
 			}
 
 			shm->hasQueue = false;
-			unsigned long time = ptime->seco*(unsigned long)1e9 + ptime->nano;
-			time += 5e8;
 			ptime->seco = time/(unsigned long)1e9;
 			ptime->nano = time%(unsigned long)1e9;
 			faultOccurence++;
@@ -173,6 +178,8 @@ int main(int argc, char * argv[]){
 	printf("OSS: There were %d page requests made\n", shm->pagesRequested);
 	printf("OSS: There were %d page fault handler events\n", faultOccurence);
 	printf("OSS: Deallocating and quitting..\n");
+	unsigned long timeO = ptime->seco*(unsigned long)1e9 + ptime->nano;
+	writeStats("log.txt", timeO, shm->pagesRequested, faultOccurence);
 	/* DEALLOCATE */
 	sem_unlink("SEMA6");
 	if(shmdt(shm) == -1){
@@ -191,6 +198,26 @@ int main(int argc, char * argv[]){
 }
 
 /* FUNCTIONS */
+void writeFault(char * name, unsigned long time){
+	FILE *fp;
+	fp = fopen(name, "a");
+	char wroteline[355];
+	sprintf(wroteline, "OSS: Page Fault occured at %lu:%lu. Applying Fault Algorithm\n", time/(unsigned long)1e9, time%(unsigned long)1e9);
+	fprintf(fp, wroteline);
+	fclose(fp);
+	return;
+}
+
+void writeStats(char * name, unsigned long time, int requestN, int faultN){
+	FILE *fp;
+	fp = fopen(name, "a");
+	char wroteline[355];
+	sprintf(wroteline, "OSS Completed at %lu:%lu.\nThere were %d page requests made.\nThere were %d page fault handler events\n", time/(unsigned long)1e9, time%(unsigned long)1e9, requestN, faultN);
+	fprintf(fp, wroteline);
+	fclose(fp);
+	return;
+}
+
 bool framesFull(){
 	for(int i = 0; i < FRAMELEN; i++){
 		if(shm->frames[i] > 0)
@@ -227,9 +254,17 @@ int getRandomNumber(int low, int high){
 	return num;
 }
 
+void clearOldOutput(){
+	/* DELETE PREVIOUS LOG.TXT FILE */
+	int status1 = remove("log.txt");
+	if(status1 == 0){
+		printf("--> Previous %s deleted.\n\n", "log.txt");
+	}
+	return;
+}
+
 int getnamed(char *name, sem_t **sem, int val){
 	/* FUNCTION TO ACCESS NAMED SEMAPHORE | CREATING IF IT DOESNT EXIST */
-
 	while(((*sem = sem_open(name, FLAGS , PERMS , val)) == SEM_FAILED) && (errno == EINTR));
 	if(*sem != SEM_FAILED) return 0;
 	if(errno != EEXIST) return -1;

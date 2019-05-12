@@ -1,0 +1,39 @@
+	USER: Child 3:2588 requests Frame for Page at 0:0.
+	USER: Child 4:2589 requests Frame for Page at 0:500000000.
+	USER: Child 1:2586 requests Frame for Page at 1:0.
+	USER: Child 3:2588 requests Frame for Page at 1:500000000.
+	USER: Child 1:2586 requests Frame for Page at 2:0.
+	USER: Child 3:2588 requests Frame for Page at 2:500000000.
+OSS: Page Fault occured at 3:0. Applying Fault Algorithm
+	USER: Child 2:2587 requests Frame for Page at 10:0.
+	USER: Child 4:2590 requests Frame for Page at 17:250000000.
+	USER: Child 4:2592 requests Frame for Page at 24:250000000.
+	USER: Child 2:2587 requests Frame for Page at 24:750000000.
+OSS: Page Fault occured at 32:0. Applying Fault Algorithm
+	USER: Child 4:2594 requests Frame for Page at 32:0.
+	USER: Child 4:2592 requests Frame for Page at 38:500000000.
+	USER: Child 4:2596 requests Frame for Page at 39:0.
+	USER: Child 4:2592 requests Frame for Page at 45:0.
+	USER: Child 4:2597 requests Frame for Page at 45:500000000.
+	USER: Child 4:2591 requests Frame for Page at 46:0.
+OSS: Page Fault occured at 46:500000000. Applying Fault Algorithm
+OSS: Page Fault occured at 52:0. Applying Fault Algorithm
+	USER: Child 4:2592 requests Frame for Page at 52:0.
+	USER: Child 4:2599 requests Frame for Page at 52:500000000.
+	USER: Child 4:2592 requests Frame for Page at 57:500000000.
+OSS: Page Fault occured at 63:250000000. Applying Fault Algorithm
+	USER: Child 4:2601 requests Frame for Page at 63:250000000.
+OSS: Page Fault occured at 63:750000000. Applying Fault Algorithm
+	USER: Child 4:2591 requests Frame for Page at 63:750000000.
+	USER: Child 4:2591 requests Frame for Page at 68:500000000.
+OSS: Page Fault occured at 69:0. Applying Fault Algorithm
+OSS: Page Fault occured at 69:500000000. Applying Fault Algorithm
+OSS: Page Fault occured at 70:500000000. Applying Fault Algorithm
+	USER: Child 4:2591 requests Frame for Page at 70:500000000.
+OSS: Page Fault occured at 74:750000000. Applying Fault Algorithm
+	USER: Child 4:2601 requests Frame for Page at 75:250000000.
+OSS: Page Fault occured at 75:750000000. Applying Fault Algorithm
+OSS: Page Fault occured at 76:250000000. Applying Fault Algorithm
+OSS Completed at 79:500000000.
+There were 24 page requests made.
+There were 12 page fault handler events

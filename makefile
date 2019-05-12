@@ -26,4 +26,4 @@ user.o: user.c
 
 # clean up
 clean:
-	$(RM) -f $(OBJ) oss.o oss user.o user output.txt
+	$(RM) -f $(OBJ) oss.o oss user.o user log.txt
